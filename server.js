@@ -1,14 +1,16 @@
-// server.js
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const port = 443;
 
-// Define a route
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/', (req, res) => {
-    res.send('Hello, world!');
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // HTTPS options
