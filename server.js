@@ -13,8 +13,8 @@ app.get('/', (req, res) => {
 
 // HTTPS options
 const options = {
-    key: fs.readFileSync('keys/key.pem'),
-    cert: fs.readFileSync('keys/cert.pem')
+    key: fs.readFileSync('../keys/key.pem'),
+    cert: fs.readFileSync('../keys/cert.pem')
 };
 
 // Create an HTTPS server
