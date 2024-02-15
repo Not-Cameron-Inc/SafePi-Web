@@ -9,26 +9,16 @@ const app = express();
 app.set("view engine", "ejs");
 app.use(express.static("public"));
 
-// const fetch = require('node-fetch');
+const fetch = require('node-fetch');
 
 const port = 443;
 
 
 
-// Serve static files from the public directory
-// app.use(express.static(path.join(__dirname, 'public')));
-
-// app.use(app.oauth.authorize());
-
-// app.use(function (req, res) {
-//   res.send('Secret area');
-// });
-
-
 // HTTPS options
 const options = {
-  key: fs.readFileSync('../keys/key.pem'),
-  cert: fs.readFileSync('../keys/cert.pem')
+    key: fs.readFileSync('../keys/key.pem'),
+    cert: fs.readFileSync('../keys/cert.pem')
 };
 
 // Create an HTTPS server
@@ -36,17 +26,26 @@ const server = https.createServer(options, app);
 
 //root route
 app.get('/', (req, res) => {
-  res.render('home');
+    res.render('home');
 });
 
 //get route
 app.get('/get', (req, res) => {
-  res.render('get');
+    res.render('get');
+});
+
+app.get("/api/getDoor", async (req, res) => {
+    
+    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
+
+    let response = await fetch(url);
+    let data = await response.json();
+    res.send(data);
 });
 
 // app.post("/postToken", authenticated, (req,res) => )
 
 // Start the HTTPS server
 server.listen(port, () => {
-  console.log(`Server is listening at https://localhost:${port}`);
+    console.log(`Server is listening at https://localhost:${port}`);
 });
