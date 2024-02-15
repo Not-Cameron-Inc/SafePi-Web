@@ -11,7 +11,8 @@ npm init -y
 npm install express
 npm install @node-oauth/express-oauth-server
 npm install nodemon --save-dev
-
+npm install ejs
+npm install node-fetch@2
 ```
 ### Self-signed Certificates for HTTPS:
 Since we do not own a domain name associated with out site, we have to self-sign a certificate in order to use https for encryption. To do this install the latest openssl and run these commands from the repo directory:
