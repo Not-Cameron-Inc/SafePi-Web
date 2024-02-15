@@ -35,10 +35,38 @@ app.get('/get', (req, res) => {
 });
 
 app.get("/api/getDoor", async (req, res) => {
-    
+
     let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
 
     let response = await fetch(url);
+    let data = await response.json();
+    res.send(data);
+});
+
+app.get("/api/postDoor/:isLocked", async (req, res) => {
+
+    var isLocked = false;
+    if(req.params.isLocked == "true"){
+        isLocked = true;
+    }
+
+    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
+
+    let response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            "fields": {
+            "isLocked": {
+                "booleanValue": isLocked
+            }
+        },
+    })});
+
+    
     let data = await response.json();
     res.send(data);
 });
