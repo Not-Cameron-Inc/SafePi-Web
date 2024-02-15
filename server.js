@@ -43,11 +43,13 @@ app.get("/api/getDoor", async (req, res) => {
     res.send(data);
 });
 
-app.get("/api/postDoor", async (req, res) => {
+app.get("/api/postDoor/:isLocked", async (req, res) => {
 
     var isLocked = false;
     if(req.params.isLocked == "true"){
         isLocked = true;
+    } else {
+        isLocked = false;
     }
 
     let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
