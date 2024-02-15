@@ -10,6 +10,8 @@ Run these commands to install and set up the necessary environment from the repo
 npm init -y
 npm install express
 npm install @node-oauth/express-oauth-server
+npm install ejs
+npm install node-fetch@2
 npm install nodemon --save-dev
 
 ```
