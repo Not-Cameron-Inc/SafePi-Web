@@ -20,10 +20,11 @@ npm install node-fetch@2
 Since we do not own a domain name associated with out site, we have to self-sign a certificate in order to use https for encryption. To do this install the latest openssl and run these commands from the repo directory:
 ```
 mkdir ../keys
+openssl genrsa -out ../keys/key.pem 2048
 openssl req -new -key ../keys/key.pem -out ../keys/csr.pem -config san.cnf
 openssl x509 -req -days 365 -in ../keys/csr.pem -signkey ../keys/key.pem -out ../keys/cert.pem -extensions req_ext -extfile san.cnf
-
 ```
+If you want to run client side scripts without any trouble, you'll likely need to copy the cer.pem from our server, and give the path to the requests verify="path/to/cert" when sending a request. If you want to ignore the cert in the "curl" call, just give the -k argument.
 
 To test the configuration, start the server and make a request from a different machine like this:
 ```
