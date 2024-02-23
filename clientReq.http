@@ -1,0 +1,6 @@
+POST  https://localhost/create_user HTTP/1.1
+content-type: application/json
+{ 
+    "email": "test@test.com",
+    "password":"TheWorstPasswordEver$10293"
+}
