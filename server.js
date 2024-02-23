@@ -110,14 +110,31 @@ app.get("/api/getDoor", async (req, res) => {
     res.send(data);
 });
 
+app.get("/api/getEmail", async (req, res) => {
+
+    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
+
+    let response = await fetch(url);
+    let data = await response.json();
+    res.send(data);
+});
+
 // app.get("/api/postDoor/:isLocked", oauth.authenticate(), async (req, res) => {
-app.post("/api/postDoor", async (req, res) => {
+app.post("/api/postDoor", jsonParser, async (req, res) => {
 
-    const match = await bcrypt.compare(password, passwordHash);
+    let email_url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/user/email_auth";
 
+    let email_response = await fetch(email_url);
+    let email_data = await email_response.json();
+    let email = email_data.fields.email.stringValue;
+    let token = email_data.fields.token.stringValue;
+    let password = req.body.password;
+    console.log(email_data);
+    console.log(req.body);
+    const match = await bcrypt.compare(`${email}:${password}`, token);
+    // var match = false;
 
-    //TODO: need to get email verification with get req
-    if (match) {
+    if (match && email == "test@test.com") {
         if (req.body.isLocked == "true") {
             isLocked = true;
         } else {
