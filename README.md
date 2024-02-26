@@ -44,7 +44,7 @@ curl -X POST \
   -d "client_secret=your_client_secret" \
   -d "username=user@example.com" \
   -d "password=user_password" \
-  https://184.72.19.36/oauth/token
+  https://www.safepi.org/oauth/token
 
 ```
 
