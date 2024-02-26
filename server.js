@@ -56,7 +56,11 @@ db.saveClient({
 
 //root route
 app.get('/', (req, res) => {
-    res.render('home');
+    // Path to the index.html file
+    const indexPath = path.join(__dirname, 'public', 'index.html');
+    
+    // Send the index.html file
+    res.sendFile(indexPath);
 });
 
 // create oauth user
