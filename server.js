@@ -1,5 +1,5 @@
 const express = require('express');
-const https = require('https');
+const https = require('http');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
 
@@ -33,7 +33,7 @@ const port = 8001;
 // };
 
 // Create an HTTPS server
-const server = https.createServer(options, app);
+const server = http.createServer(app);
 //**************************************************/
 
 //* OAUTH 2 Server Boilerplate *********************/
