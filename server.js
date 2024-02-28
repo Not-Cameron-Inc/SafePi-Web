@@ -131,6 +131,8 @@ app.post("/api/postDoor", jsonParser, async (req, res) => {
     let password = req.body.password;
     console.log(email_data);
     console.log(req.body);
+
+    //TODO: change the DB to have mutiple users and the signin on 95
     const match = await bcrypt.compare(`${email}:${password}`, token);
     // var match = false;
 
