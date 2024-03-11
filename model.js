@@ -1,12 +1,12 @@
 const enabledScopes = ['read', 'write'];
 const getUserDoc = () => ({ id: 'system' });
 
-function createModel (db) {
-  async function getClient (clientId, clientSecret) {
+function createModel(db) {
+  async function getClient(clientId, clientSecret) {
     return db.findClient(clientId, clientSecret);
   }
 
-  async function validateScope (user, client, scope) {
+  async function validateScope(user, client, scope) {
     if (!user || user.id !== 'system') {
       return false;
     }
@@ -22,7 +22,7 @@ function createModel (db) {
     }
   }
 
-  async function getUserFromClient (_client) {
+  async function getUserFromClient(_client) {
     // In this setup we don't have any users, so
     // we return an object, representing a "system" user
     // and avoid creating any user documents.
@@ -32,7 +32,7 @@ function createModel (db) {
     return client && getUserDoc();
   }
 
-  async function saveToken (token, client, user) {
+  async function saveToken(token, client, user) {
     const meta = {
       clientId: client.id,
       userId: user.id,
@@ -51,11 +51,11 @@ function createModel (db) {
     if (token.refreshToken) {
       db.saveRefreshToken(token.refreshToken, meta);
     }
-
     return token;
   }
 
-  async function getAccessToken (accessToken) {
+  async function getAccessToken(accessToken) {
+
     const meta = db.findAccessToken(accessToken);
 
     if (!meta) {
@@ -71,7 +71,7 @@ function createModel (db) {
     };
   }
 
-  async function getRefreshToken (refreshToken) {
+  async function getRefreshToken(refreshToken) {
     const meta = db.findRefreshToken(refreshToken);
 
     if (!meta) {
@@ -87,13 +87,14 @@ function createModel (db) {
     };
   }
 
-  async function revokeToken (token) {
+  async function revokeToken(token) {
     db.deleteRefreshToken(token.refreshToken);
 
     return true;
   }
 
-  async function verifyScope (token, scope) {
+  async function verifyScope(token, scope) {
+
     if (typeof scope === 'string') {
       return enabledScopes.includes(scope);
     } else {
