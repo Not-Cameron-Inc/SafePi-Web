@@ -85,7 +85,7 @@ function findUserByEmail(user_docs, req_email){
     return null;
 }
 
-app.post('/reset_account', jsonParser, oauth.authorize(), async (req, res) => {
+app.post('/reset_account', jsonParser, oauth.authenticate(), async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
