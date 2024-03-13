@@ -1,3 +1,4 @@
+const session = require('express-session');
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -17,7 +18,6 @@ var jsonParser = bodyParser.json()
 
 // create application/x-www-form-urlencoded parser
 var urlencodedParser = bodyParser.urlencoded({ extended: false })
-
 
 //* Database ***************************************/
 var firestore_client = new Firestore({ projectId:'hello-world-rest-4dd02', keyFilename: './hello-world-rest-4dd02-d43397478c6a.json'});
@@ -44,6 +44,29 @@ const options = {
 const server = https.createServer(options, app);
 //************************************************* */
 
+//** SESSIONS BOILERPLATE **************************/
+
+app.set('trust proxy', 1) // trust first proxy
+app.use(session({
+    secret: 'NotCameronInc',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: true }
+}));
+
+// middleware functions
+function isAuthenticated(req, res, next) {
+    if (req.session.authenticated) {
+        next();
+    } else {
+        req.session.authenticated = true;
+        // change back to...
+        // res.redirect('/');
+    }
+}
+
+//**************************************************/
+
 //* OAUTH 2 Server Boilerplate *********************/
 const db = new DB();
 const oauth = new OAuthServer({
@@ -58,7 +81,7 @@ db.saveClient({
 });
 
 app.post('/token', urlencodedParser, oauth.token(), function (res) {
-    res.send(db.findAccessToken());
+    res.send(`Here is your one time use token: \n ${db.findAccessToken()}`);
 });
 //**************************************************/
 
@@ -66,6 +89,11 @@ app.post('/token', urlencodedParser, oauth.token(), function (res) {
 //root route
 app.get('/', async (req, res) => {
     res.render('home');
+});
+
+app.post('/login', oauth.authenticate(), async (req,res) => {
+    req.session.authenticated = true;
+    res.send("Logged in and authenticated! You're token needs to be replaced.")
 });
 
 var num = 0;
@@ -85,7 +113,7 @@ function findUserByEmail(user_docs, req_email){
     return null;
 }
 
-app.post('/reset_account', jsonParser, oauth.authenticate(), async (req, res) => {
+app.post('/reset_account', jsonParser, isAuthenticated, async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -109,7 +137,7 @@ app.post('/reset_account', jsonParser, oauth.authenticate(), async (req, res) =>
 });
 
 // create oauth user
-app.post('/create_user', jsonParser, oauth.authenticate(), async (req, res) => {
+app.post('/create_user', jsonParser, isAuthenticated, async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -148,7 +176,7 @@ app.post('/create_user', jsonParser, oauth.authenticate(), async (req, res) => {
 
 
 //signin oauth user
-app.post('/sign_in', jsonParser, oauth.authenticate(), async (req, res) => {
+app.post('/sign_in', jsonParser, isAuthenticated, async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -184,7 +212,7 @@ app.get("/api/getDoor", async (req, res) => {
     res.send(document);
 });
 
-app.post("/api/postDoor", jsonParser, oauth.authenticate(), async (req, res) => {
+app.post("/api/postDoor", jsonParser, isAuthenticated, async (req, res) => {
     let document = firestore_client.doc('door/isLockedDoc');
     let outputStatement = "";
     if (req.body.isLocked == "true") {
