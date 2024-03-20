@@ -1,7 +1,10 @@
+const session = require('express-session');
 const express = require('express');
 const http = require('http');
 const fs = require('fs');
 const bcrypt = require('bcrypt');
+
+const Firestore = require('@google-cloud/firestore');
 
 const OAuthServer = require('@node-oauth/express-oauth-server');
 const createModel = require('./model');
@@ -15,6 +18,11 @@ var jsonParser = bodyParser.json()
 
 // create application/x-www-form-urlencoded parser
 var urlencodedParser = bodyParser.urlencoded({ extended: false })
+
+//* Database ***************************************/
+var firestore_client = new Firestore({ projectId:'hello-world-rest-4dd02', keyFilename: './hello-world-rest-4dd02-d43397478c6a.json'});
+//**************************************************/
+
 
 //* App and HTTPS settings and usages **************/
 const app = express();
@@ -45,136 +53,158 @@ const oauth = new OAuthServer({
 db.saveClient({
     id: process.env.CLIENT_ID,
     secret: process.env.CLIENT_SECRET,
-    grants: ['client_credentials']
+    grants: ['client_credentials'],
+    scope: ["read","write"]
 });
 
-
-// app.use('/token', oauth.token(), () => {
-//     console.log("created token!");
-// });
+app.post('/token', urlencodedParser, oauth.token(), function (res) {
+    res.send(`Here is your one time use token: \n ${db.findAccessToken()}`);
+});
 //**************************************************/
 
+
 //root route
-app.get('/', (req, res) => {
-    // Path to the index.html file
-    const indexPath = path.join(__dirname, 'public', 'index.html');
+app.get('/', async (req, res) => {
+    res.render('home');
+});
+
+app.post('/login', oauth.authenticate(), async (req,res) => {
+    req.session.authenticated = true;
+    res.send("Logged in and authenticated! You're token needs to be replaced.")
+});
+
+var num = 0;
+
+function findUserByEmail(user_docs, req_email){
+    for(let id = 0; id < user_docs.length; id++){
+        let user_doc = user_docs[id];
+        let email = user_doc._fieldsProto.email.stringValue;
+        let document_name = user_doc._ref._path.segments[1];
+        if (email == req_email) {
+            let data = {}
+            data['document'] = user_docs[id];
+            data['document_name'] = document_name;
+            return data;
+        }
+    }
+    return null;
+}
+
+app.post('/reset_account', jsonParser, isAuthenticated, async (req, res) => {
+
+    let user_collection = await firestore_client.collection('user').get();
+    let user_docs = user_collection.docs;
     
-    // Send the index.html file
-    res.sendFile(indexPath);
+    let req_email = req.body.email;
+    let user_document = findUserByEmail(user_docs, req_email);
+    if(user_document != null){
+
+        hash = bcrypt.hashSync(`${req.body.email}:${req.body.password}`, 10);
+    
+        var update_account = {
+            email: req_email,
+            token: hash
+        }
+        await firestore_client.collection('user').doc(`${user_document['document_name']}`).set(update_account);
+
+        res.send(`reset ${req_email} user in document email_auth`);    
+    } else {
+        res.send(`${req_email} does not have an account. try /create_user to make an account`);    
+    }
 });
 
 // create oauth user
-app.post('/create_user', jsonParser, async (req, res) => {
+app.post('/create_user', jsonParser, isAuthenticated, async (req, res) => {
 
-    let email = req.body.email;
-    hash = bcrypt.hashSync(`${req.body.email}:${req.body.password}`, 10);
+    let user_collection = await firestore_client.collection('user').get();
+    let user_docs = user_collection.docs;
 
-    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/user/email_auth";
+    let req_email = req.body.email;
+    let foundEmail = findUserByEmail(user_docs, req_email);
+    let flag2 = (foundEmail != null) ? true : false;
 
-    let response = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            "fields": {
-                "email": {
-                    "stringValue": email
-                },
-                "token": {
-                    "stringValue": hash
-                }
-            },
-        })
-    });
-
-
-    let data = await response.json();
-
-    res.send(`created user ${email} and data ${data}`);
+    if(flag2 == false){
+        let flag = true;
+        let small_hash;
+        while(flag){
+            let hash_doc = bcrypt.hashSync(`${req.body.email}:${req.body.password}:${num}`, 10);
+            small_hash = hash_doc.substring(10,20);
+            let splitHash = small_hash.split("/");
+            if(splitHash.length == 1){
+                flag = false;
+            }
+            
+            num++;
+        }
+        
+        
+        hash = bcrypt.hashSync(`${req.body.email}:${req.body.password}`, 10);
+        
+        var new_account = {
+            email: req_email,
+            token: hash
+        }
+        await firestore_client.collection('user').doc(`email_auth_${small_hash}`).set(new_account);
+        res.send(`created user in document email_auth_${small_hash}`);
+    } else {
+        res.send(`${req_email} user already exists. Try /reset_account to change your account information.`);    
+    }
 });
+
 
 //signin oauth user
-app.get('/sign_in', async (req, res) => {
-    res.send("signed in!");
+app.post('/sign_in', jsonParser, isAuthenticated, async (req, res) => {
+
+    let user_collection = await firestore_client.collection('user').get();
+    let user_docs = user_collection.docs;
+    
+    let req_email = req.body.email;
+    let req_pass = req.body.password;
+    let user_document = findUserByEmail(user_docs, req_email);
+    if(user_document != null){
+        let reqToken = req_email+":"+req_pass;
+        let token = user_document['document']._fieldsProto.token.stringValue;
+        const match = await bcrypt.compare(reqToken,token);
+        if (match) {
+        // if (match) {
+            
+            res.send(`Signed in ${req_email}!`);
+            
+        } else {
+            res.send(`Incorrect email and/or password.`);    
+        }
+
+    } else {
+        res.send(`${req_email} does not have an account. try /create_user to make an account`);    
+    }
 });
 
-//get route
-app.get('/get', (req, res) => {
-    res.render('get');
+app.get('/denied', (req, res) => {
+    res.render('denied');
 });
 
 app.get("/api/getDoor", async (req, res) => {
 
-    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
-
-    let response = await fetch(url);
-    let data = await response.json();
-    res.send(data);
+    let document = firestore_client.doc('door/isLockedDoc');
+    res.send(document);
 });
 
-app.get("/api/getEmail", async (req, res) => {
-
-    let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
-
-    let response = await fetch(url);
-    let data = await response.json();
-    res.send(data);
-});
-
-// app.get("/api/postDoor/:isLocked", oauth.authenticate(), async (req, res) => {
-app.post("/api/postDoor", jsonParser, async (req, res) => {
-
-    let email_url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/user/email_auth";
-
-    let email_response = await fetch(email_url);
-    let email_data = await email_response.json();
-    let email = email_data.fields.email.stringValue;
-    let token = email_data.fields.token.stringValue;
-    let password = req.body.password;
-    console.log(email_data);
-    console.log(req.body);
-    const match = await bcrypt.compare(`${email}:${password}`, token);
-    // var match = false;
-
-    if (match && email == "test@test.com") {
-        if (req.body.isLocked == "true") {
-            isLocked = true;
-        } else {
-            isLocked = false;
-        }
-
-        let url = "https://firestore.googleapis.com/v1/projects/hello-world-rest-4dd02/databases/(default)/documents/door/isLockedDoc";
-
-        let response = await fetch(url, {
-            method: 'PATCH',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                "fields": {
-                    "isLocked": {
-                        "booleanValue": isLocked
-                    }
-                },
-            })
-        });
-
-
-        let data = await response.json();
-        res.send(data);
+app.post("/api/postDoor", jsonParser, isAuthenticated, async (req, res) => {
+    let document = firestore_client.doc('door/isLockedDoc');
+    let outputStatement = "";
+    if (req.body.isLocked == "true") {
+        isLocked = true;
+        outputStatement = "Locked the door!";
+    } else {
+        isLocked = false;
+        outputStatement = "Unlocked the door!";
     }
-    else {
-        res.send("Wrong Credentials!");
-    }
+    await document.update({
+        isLocked: isLocked,
+    });
+    res.send(outputStatement);
 });
 
-app.post("/api/email_auth", async (req, res) => {
-
-    res.send("Not ready yet.");
-});
 
 // Start the HTTPS server
 server.listen(port, () => {
