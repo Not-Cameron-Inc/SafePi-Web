@@ -34,12 +34,6 @@ const fetch = require('node-fetch');
 
 const port = 8001;
 
-// HTTPS options
-// const options = {
-//     key: fs.readFileSync('../keys/key.pem'),
-//     cert: fs.readFileSync('../keys/cert.pem')
-// };
-
 // Create an HTTPS server
 const server = http.createServer(app);
 //**************************************************/
