@@ -4,3 +4,5 @@ hello-world-rest-4dd02-d43397478c6a.json
 package-lock.json
 .oauth2_keys.json
 .env
+ec2-joseph.pem
+safepi.pem

@@ -1,3 +1,6 @@
+/**
+ * * This is a template from the @node-oauth2-express documentation.
+ */
 class DB {
   constructor () {
     this.clients = [];

@@ -39,11 +39,15 @@ const server = http.createServer(app);
 //**************************************************/
 
 //* OAUTH 2 Server Boilerplate *********************/
+// create a database object that holds the client data
+// this does not actually connect to a database, this just creates a data object
 const db = new DB();
+// create the oauth server object with the database object as a model to follow 
 const oauth = new OAuthServer({
     model: createModel(db)
 });
 
+// save the client data into the database object
 db.saveClient({
     id: process.env.CLIENT_ID,
     secret: process.env.CLIENT_SECRET,
@@ -51,40 +55,75 @@ db.saveClient({
     scope: ["read","write"]
 });
 
+// endpoint to get a token, this is needed before login
 app.post('/token', urlencodedParser, oauth.token(), function (res) {
     res.send(`Here is your one time use token: \n ${db.findAccessToken()}`);
 });
 //**************************************************/
-
-
-//root route
-app.get('/', async (req, res) => {
-    res.render('home');
-});
-
-app.post('/login', oauth.authenticate(), async (req,res) => {
-    req.session.authenticated = true;
-    res.send("Logged in and authenticated! You're token needs to be replaced.")
-});
-
-var num = 0;
-
+//* FUNCTIONS **************************************/
+/**
+ * function to get a user by email from the firestore database with a docs collection
+ * @param {Array} user_docs 
+ * @param {String} req_email 
+ * @returns JSON Object | null
+ */
 function findUserByEmail(user_docs, req_email){
+    // search through each of the documents by an id...
     for(let id = 0; id < user_docs.length; id++){
+        //... and a doc at that id
         let user_doc = user_docs[id];
+        // get the email from the document
         let email = user_doc._fieldsProto.email.stringValue;
+        // get the document name by the path
         let document_name = user_doc._ref._path.segments[1];
+        // if the email in the doc is the same as the email we are trying to find
         if (email == req_email) {
+            // we found the email, create a JSON object, load it, and return it
             let data = {}
             data['document'] = user_docs[id];
             data['document_name'] = document_name;
             return data;
         }
     }
+    // occurs when an email was not found in the users document collection
     return null;
 }
+//**************************************************/
+//* ENDPOINTS **************************************/
+//root route
+app.get('/', async (req, res) => {
+    res.render('home');
+});
 
-app.post('/reset_account', jsonParser, isAuthenticated, async (req, res) => {
+// login route to authenticate device, this uses the token
+app.post('/login', urlencodedParser, oauth.token(), async (req,res) => {
+
+    let user_collection = await firestore_client.collection('user').get();
+    let user_docs = user_collection.docs;
+    
+    let req_email = req.body.email;
+    let req_pass = req.body.password;
+    let user_document = findUserByEmail(user_docs, req_email);
+    if(user_document != null){
+        let reqToken = req_email+":"+req_pass;
+        let token = user_document['document']._fieldsProto.token.stringValue;
+        const match = await bcrypt.compare(reqToken,token);
+        if (match) {
+        // if (match) {
+            
+            res.send(`${db.findAccessToken()}`);
+            
+        } else {
+            res.send(`Incorrect email and/or password.`);    
+        }
+
+    } else {
+        res.send(`${req_email} does not have an account. try /create_user to make an account`);    
+    }
+
+});
+
+app.post('/reset_account', jsonParser, oauth.authenticate(), async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -107,8 +146,12 @@ app.post('/reset_account', jsonParser, isAuthenticated, async (req, res) => {
     }
 });
 
-// create oauth user
-app.post('/create_user', jsonParser, isAuthenticated, async (req, res) => {
+
+// num is used to 
+var num = 0;
+
+// create user
+app.post('/create_user', jsonParser, oauth.authenticate(), async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -147,7 +190,7 @@ app.post('/create_user', jsonParser, isAuthenticated, async (req, res) => {
 
 
 //signin oauth user
-app.post('/sign_in', jsonParser, isAuthenticated, async (req, res) => {
+app.post('/sign_in', jsonParser, oauth.authenticate(), async (req, res) => {
 
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
@@ -177,13 +220,14 @@ app.get('/denied', (req, res) => {
     res.render('denied');
 });
 
+//* APIS
 app.get("/api/getDoor", async (req, res) => {
 
     let document = firestore_client.doc('door/isLockedDoc');
     res.send(document);
 });
 
-app.post("/api/postDoor", jsonParser, isAuthenticated, async (req, res) => {
+app.post("/api/postDoor", jsonParser, oauth.authenticate(), async (req, res) => {
     let document = firestore_client.doc('door/isLockedDoc');
     let outputStatement = "";
     if (req.body.isLocked == "true") {
@@ -198,7 +242,7 @@ app.post("/api/postDoor", jsonParser, isAuthenticated, async (req, res) => {
     });
     res.send(outputStatement);
 });
-
+//**************************************************/
 
 // Start the HTTPS server
 server.listen(port, () => {

@@ -35,17 +35,81 @@ If you haven't done so already, install this server library for using OAuth2 wit
 ```
 npm install @node-oauth/express-oauth-server
 ```
-Here is an example of a curl request done from the cli:
-```
-curl -X POST \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=your_client_id" \
-  -d "client_secret=your_client_secret" \
-  -d "username=user@example.com" \
-  -d "password=user_password" \
-  https://www.safepi.org/oauth/token
+### Extra steps for getting Oauth2 working
+There is an extra set of steps to get the Oauth2 library to work properly, as the developers of the library had some oversights... (insert more documentation for this)
 
+## OAuth 2 Workflow
+### Getting a Token
+First, a token can be generated with a given client secret and ID from Google's API Credentials. This is put into Base64 as follows:
+```
+Base64(client_id:client_secret)
+```
+
+The token can be obtained in one of two ways: client/device authentication and user authentication.
+
+For client authentication, such as the Raspberry Pi, use the following request:
+```
+curl --location 'https://safepi.org/login' \
+--header 'Authorization: Basic [insert Base64 string from before of client id and secret]' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'grant_type=client_credentials' \
+--data-urlencode 'scope=read '
+```
+
+For user authentication, this request would be used (which adds a needed email and password to find a user in the database):
+```
+curl --location 'https://safepi.org/login' \
+--header 'Authorization: Basic [insert Base64 string from before of client id and secret]' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--data-urlencode 'email=[insert email]' \
+--data-urlencode 'password=[insert password]' \
+--data-urlencode 'grant_type=client_credentials' \
+--data-urlencode 'scope=read '
+```
+
+Once the user or device is authenticated, a token is generated as a responce:
+```
+{
+    "access_token": "[token generated here]",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "scope": true
+}
+```
+
+## Using the OAuth token
+The token can now be used in a lot of rquests from creating and reseting users to chaning the door lock. The following are some request examples:
+
+### Creating users (POST)
+```
+curl --location 'https://localhost:443/create_user' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer [insert token]' \
+--data-raw '{
+    "email":"[insert email]",
+    "password":"[insert password]"
+}'
+```
+
+### Reseting user passwords (POST)
+```
+curl --location 'https://localhost/reset_account' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer [insert token]' \
+--data-raw '{
+    "email":"[insert email]",
+    "password":"[insert new password]"
+}'
+```
+
+### Change Door Lock (POST)
+```
+curl --location 'https://localhost:443/api/postDoor' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer [insert token]' \
+--data '{
+    "isLocked":"true"
+}'
 ```
 
 ## References:
