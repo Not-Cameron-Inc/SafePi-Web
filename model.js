@@ -1,3 +1,6 @@
+/**
+ * * This is a template from the @node-oauth2-express documentation.
+ */
 const enabledScopes = ['read', 'write'];
 const getUserDoc = () => ({ id: 'system' });
 
