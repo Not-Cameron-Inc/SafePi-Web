@@ -39,34 +39,17 @@ There is an extra set of steps to get the Oauth2 library to work properly, as th
 
 ## OAuth 2 Workflow
 ### Getting a Token
-First, a token can be generated with a given client secret and ID from Google's API Credentials. This is put into Base64 as follows:
-```
-Base64(client_id:client_secret)
-```
+The token can be obtained by authentication of user credentials.
 
-The token can be obtained in one of two ways: client/device authentication and user authentication.
-
-For client authentication, such as the Raspberry Pi, use the following request:
+For authentication, this request would be used (which adds a needed email and password to find a user in the database):
 ```
 curl --location 'https://safepi.org/login' \
---header 'Authorization: Basic [insert Base64 string from before of client id and secret]' \
---header 'Content-Type: application/x-www-form-urlencoded' \
---data-urlencode 'grant_type=client_credentials' \
---data-urlencode 'scope=read '
-```
-
-For user authentication, this request would be used (which adds a needed email and password to find a user in the database):
-```
-curl --location 'https://safepi.org/login' \
---header 'Authorization: Basic [insert Base64 string from before of client id and secret]' \
 --header 'Content-Type: application/x-www-form-urlencoded' \
 --data-urlencode 'email=[insert email]' \
 --data-urlencode 'password=[insert password]' \
---data-urlencode 'grant_type=client_credentials' \
---data-urlencode 'scope=read '
 ```
 
-Once the user or device is authenticated, a token is generated as a responce:
+Once the user or device is authenticated, a token is generated as a response:
 ```
 {
     "access_token": "[token generated here]",
@@ -77,13 +60,13 @@ Once the user or device is authenticated, a token is generated as a responce:
 ```
 
 ## Using the OAuth token
-The token can now be used in a lot of rquests from creating and reseting users to chaning the door lock. The following are some request examples:
+The token can now be used in a lot of requests from creating and resetting users to changing the door lock. The following are some request examples:
 
 ### Creating users (POST)
 ```
-curl --location 'https://localhost:443/create_user' \
+curl --location 'https://safepi.org/create_user' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer [insert token]' \
+--header 'Authorization: Bearer [insert oauth token]' \
 --data-raw '{
     "email":"[insert email]",
     "password":"[insert password]"
@@ -94,7 +77,7 @@ curl --location 'https://localhost:443/create_user' \
 ```
 curl --location 'https://localhost/reset_account' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer [insert token]' \
+--header 'Authorization: Bearer [insert oauth token]' \
 --data-raw '{
     "email":"[insert email]",
     "password":"[insert new password]"
@@ -103,13 +86,105 @@ curl --location 'https://localhost/reset_account' \
 
 ### Change Door Lock (POST)
 ```
-curl --location 'https://localhost:443/api/postDoor' \
+curl --location 'https://safepi.org/api/postDoor' \
 --header 'Content-Type: application/json' \
---header 'Authorization: Bearer [insert token]' \
+--header 'Authorization: Bearer [insert oauth token]' \
 --data '{
     "isLocked":"true"
 }'
 ```
 
+### Provisioning Pi From A Logged In User (POST)
+````
+curl --location 'https://safepi.org/provision_pi' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Bearer [insert oauth token]' \
+--data-urlencode 'email=test@test.com'
+````
+
+## JWT Workflow
+
+### Getting a JWT Token
+To get a JWT token, it can be done by having an Oauth token from a logged in user with the following request:
+```
+curl --location 'https://safepi.org/provision_pi' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'Authorization: Bearer [insert oauth token]' \
+--data-urlencode 'email=test@test.com'
+```
+
+The response of the tokens being generated has a best case of the following (denied response if invalid oauth token):
+```
+{
+    "access_token": "[insert access token]",
+    "refresh_token": "[insert refresh token]"
+}
+```
+
+### Renew JWT Token by Reprovisioning Device
+When both the access and refresh tokens are expired (usually discovered by code 2 in some response), going to ```/provision``` is required to get a new set of tokens as the following request demonstrates:
+```
+curl --location 'https://safepi.org/provision' \
+--header 'Content-Type: application/json' \
+--data '{
+    "access_token": "[insert access token]",
+    "refresh_token": "[insert refresh token]"
+}'
+```
+
+The response of the tokens being generated has a best case of the following (response code 1 if invalid JWT token by signature):
+```
+{
+    "access_token": "[insert access token]",
+    "refresh_token": "[insert refresh token]"
+}
+```
+
+When renewing with a token that has no expired refresh token, it will return code 3 of a renewed access token:
+```
+{
+    "code": 3,
+    "status": "renewed_access_token",
+    "access_token": "[insert access token]",
+    "refresh_token": "[insert refresh token]"
+}
+```
+
+### Response Codes
+There are mutiple response codes depending on the following cases:
+#### Code 0: Valid Token (usually not seen at all and is a placeholder code)
+```
+{
+    'code': 0
+}
+```
+
+#### Code 1: Invalid/Unauthorized Token
+```
+{
+    "code": 1,
+    "err": "invalid_token"
+}
+```
+
+#### Code 2: Refresh Token Expired (along with access token being expired)
+```
+{
+    "code": 2,
+    "status": "refresh_token_expired"
+}
+```
+
+#### Code 3: Renewed Acess Token
+```
+{
+    "code": 3,
+    "status": "renewed_access_token",
+    "access_token": "[insert access token]",
+    "refresh_token": "[insert refresh token]"
+}
+```
 ## References:
 [OAuth2 node express module](https://github.com/node-oauth/node-oauth2-server?tab=readme-ov-file)
+
+[JWT Checker](https://jwt.io)

@@ -253,7 +253,7 @@ async function verifyJWT(req,res,next){
         // spit back a denied code response (code 1)
         let denied_res = {};
         denied_res['code'] = 1;
-        denied_res['err'] = "unauthorized_token";
+        denied_res['err'] = "invalid_token";
         res.body = denied_res;
     }
 
@@ -341,6 +341,7 @@ app.post('/provision', jsonParser, verifyJWT, async function (req, res) {
     if(res.body != undefined){
         // get the body and return it as JSON in the response (closes connection)
         let body = res.body;
+        console.log("modified response")
         return res.json(body);
     } else {
         // otherwise, we are clear to make new access and refresh tokens
