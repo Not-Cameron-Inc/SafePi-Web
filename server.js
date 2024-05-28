@@ -23,9 +23,9 @@ var jsonParser = bodyParser.json()
 var urlencodedParser = bodyParser.urlencoded({ extended: false })
 
 //* Database ***************************************/
-var firestore_client = new Firestore({ projectId:'hello-world-rest-4dd02', keyFilename: './hello-world-rest-4dd02-d43397478c6a.json'});
+// var firestore_client = new Firestore({ projectId:'hello-world-rest-4dd02', keyFilename: './hello-world-rest-4dd02-d43397478c6a.json'});
+var firestore_client = new Firestore({ projectId:'hello-world-rest-2', keyFilename: './hello-world-rest-2-b975ee720198.json'});
 //**************************************************/
-
 
 //* App and HTTPS settings and usages **************/
 const app = express();
@@ -55,7 +55,8 @@ db.saveClient({
     id: process.env.CLIENT_ID,
     secret: process.env.CLIENT_SECRET,
     grants: ['client_credentials'],
-    scope: ["read","write"]
+    scope: ["read","write"],
+    accessTokenLifetime: 86400
 });
 //************************************************* */
 //* JWT Token Boilerplate ***************************/
@@ -184,9 +185,10 @@ async function verifyJWT(req,res,next){
 
     //check to see if the access token is legit
     let hashMatch = matchHash(secret,token_header,token_payload,result[3]);
-
+    
+    let result_refresh_dev = result_refresh[1];
     // check to see if the refresh token is legit
-    let refresh_hashMatch = matchHash(longer_secret,token_header,token_payload,result_refresh[3]);
+    let refresh_hashMatch = matchHash(longer_secret,token_header,result_refresh_dev,result_refresh[3]);
 
     // get the document assoicated to the identifier
     let hasDocument = await hasDocumentById(id_document);
@@ -230,7 +232,7 @@ async function verifyJWT(req,res,next){
         } else if (hasDocument){
             // otherwise, if the document does exist, create a new access token with code 3
             JWT_TOKEN_SMALL = await createToken(id_document, secret);
-            JWT_TOKEN_LONG = refresh_token;
+            JWT_TOKEN_LONG = await createToken(id_document, longer_secret);
 
             JWT_RENEW_RES = {}
             JWT_RENEW_RES['code'] = 3;
@@ -333,11 +335,13 @@ app.post('/provision_pi', urlencodedParser, oauth.authenticate(), async function
 app.post('/provision', jsonParser, verifyJWT, async function (req, res) {
     // if the modified body from the middleware has been modified (not undefined)
     if(res.body != undefined){
+	if(res.body.code != 0){
         // get the body and return it as JSON in the response (closes connection)
         let body = res.body;
         console.log("modified response")
         return res.json(body);
-    } else {
+	}
+    }
         // otherwise, we are clear to make new access and refresh tokens
         var JWT_TOKEN_LONG = "";
         var JWT_TOKEN_SMALL = "";
@@ -356,7 +360,7 @@ app.post('/provision', jsonParser, verifyJWT, async function (req, res) {
         JWT_TOKENS['access_token'] = JWT_TOKEN_SMALL;
         JWT_TOKENS['refresh_token'] = JWT_TOKEN_LONG;
         return res.json(JWT_TOKENS);
-    }
+    
         
 });
 
@@ -397,34 +401,39 @@ app.get('/', async (req, res) => {
     res.render('home');
 });
 
-// login route to authenticate device, this uses the token
-app.post('/login', urlencodedParser, oauth.token(), async (req,res) => {
-
+async function verifyOauth(req,res,next){
+    console.log("\n\nin function");
     let user_collection = await firestore_client.collection('user').get();
     let user_docs = user_collection.docs;
 
+    console.log("got user docs from server");
 
     let req_email = req.body.email;
     let req_pass = req.body.password;
-    let user_document = findUserByEmail(user_docs, req_email);
+    console.log("getting doc...");
+    let user_document = await findUserByEmail(user_docs, req_email);
     if(user_document != null){
+        console.log("doc not null, getting token");
         let reqToken = req_email+":"+req_pass;
         let token = user_document['document']._fieldsProto.token.stringValue;
+        console.log("got token, now checking password");
         const match = await bcrypt.compare(reqToken,token);
-        if (match) {
-        // if (match) {
-            
-            res.send(`${db.findAccessToken()}`);
-            
-        } else {
+        if (!match) {
             res.send(`Incorrect email and/or password.`);    
+        } else {
+            let currentTime = new Date();
+   	    console.log("verified login. Timestamp:",currentTime);
+            next();
         }
+        //console.log("something is broken");
 
     } else {
         res.send(`${req_email} does not have an account. try /create_user to make an account`);    
     }
+} 
 
-});
+// login route to authenticate device, this uses the token
+app.post('/login', urlencodedParser, verifyOauth, oauth.token());
 
 app.post('/reset_account', jsonParser, oauth.authenticate(), async (req, res) => {
 
@@ -496,29 +505,48 @@ app.get('/denied', (req, res) => {
     res.render('denied');
 });
 
-//* APIS
-app.get("/api/getDoor", async (req, res) => {
+//* APIS */
+app.get("/api_phone/getDoor", jsonParser, oauth.authenticate(), async (req, res) => {
+    let document = await firestore_client.doc('door/isLockedDoc');
+    let isLocked = await document.get();
+    let lockedValue = isLocked["_fieldsProto"]["isLocked"]["booleanValue"];
+    res.send(lockedValue);
+});
 
-    let document = firestore_client.doc('door/isLockedDoc');
-    res.send(document);
+app.post("/api/getDoor", jsonParser, verifyJWT, async (req, res) => {
+    if(res.body != undefined){
+        if(res.body.code != 0){
+	    let body = res.body;
+            return res.json(body);
+	}
+    }
+    
+    let document = await firestore_client.doc('door/isLockedDoc');
+    let isLocked = await document.get();
+    let lockedValue = isLocked["_fieldsProto"]["isLocked"]["booleanValue"];
+    res.send(lockedValue);
 });
 
 app.post("/api/postDoor", jsonParser, verifyJWT, async (req, res) => {
     // if the modified body from the middleware is modified (which makes this not undefined)
     if(res.body != undefined){
+	if (res.body.code != 0){
         // get the body and send it in a JSON response (closes connection)
         let body = res.body;
         return res.json(body);
+	}
     }
 
     let document = firestore_client.doc('door/isLockedDoc');
     let outputStatement = "";
+    isLocked = true;
     if (req.body.isLocked == "true") {
-        isLocked = true;
         outputStatement = "Locked the door!";
-    } else {
+    } else if (req.body.isLocked == "false"){
         isLocked = false;
         outputStatement = "Unlocked the door!";
+    } else {
+        outputStatement = "invalid_door_setting";
     }
     await document.update({
         isLocked: isLocked,
